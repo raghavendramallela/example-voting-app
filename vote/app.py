@@ -6,11 +6,40 @@ import random
 import json
 import logging
 
+# Add OpenTelemetry imports
+from opentelemetry import trace
+from opentelemetry.instrumentation.flask import FlaskInstrumentor
+from opentelemetry.instrumentation.redis import RedisInstrumentor
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.semconv.resource import ResourceAttributes
+
+# Initialize TracerProvider
+trace.set_tracer_provider(TracerProvider(
+    resource=Resource.create({
+        ResourceAttributes.SERVICE_NAME: "voting-app"
+    })
+))
+
+# Configure OTLP exporter
+otlp_exporter = OTLPSpanExporter()
+span_processor = BatchSpanProcessor(otlp_exporter)
+trace.get_tracer_provider().add_span_processor(span_processor)
+
+# Get the tracer
+tracer = trace.get_tracer(__name__)
+
 option_a = os.getenv('OPTION_A', "Cats")
 option_b = os.getenv('OPTION_B', "Dogs")
 hostname = socket.gethostname()
 
 app = Flask(__name__)
+
+# Initialize Flask instrumentation
+FlaskInstrumentor().instrument_app(app)
+RedisInstrumentor().instrument()
 
 gunicorn_error_logger = logging.getLogger('gunicorn.error')
 app.logger.handlers.extend(gunicorn_error_logger.handlers)

@@ -1,6 +1,4 @@
-# version is now using "compose spec"
-# v2 and v3 are now combined!
-# docker-compose v1.27+ required
+version: "3.9"
 
 services:
   vote:
@@ -10,6 +8,14 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+      - OTEL_SERVICE_NAME=voting-app
+      - OTEL_PYTHON_LOG_CORRELATION=true
+      - OTEL_TRACES_SAMPLER=always_on
+      - OTEL_METRICS_EXPORTER=none
+      - OTEL_LOGS_EXPORTER=none
     healthcheck: 
       test: ["CMD", "curl", "-f", "http://localhost"]
       interval: 15s
@@ -26,7 +32,6 @@ services:
 
   result:
     build: ./result
-    # use nodemon rather than node for local dev
     entrypoint: nodemon --inspect=0.0.0.0 server.js
     depends_on:
       db:
@@ -75,9 +80,6 @@ services:
     networks:
       - back-tier
 
-  # this service runs once to seed the database with votes
-  # it won't run unless you specify the "seed" profile
-  # docker compose --profile seed up -d
   seed:
     build: ./seed-data
     profiles: ["seed"]
@@ -87,6 +89,33 @@ services:
     networks:
       - front-tier
     restart: "no"
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "14250:14250"  # gRPC collector
+      - "6831:6831/udp"  # Jaeger agent
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true  # Enable OTLP receiver
+      - COLLECTOR_ZIPKIN_ENABLED=false  # Disable Zipkin
+    networks:
+      - front-tier
+      - back-tier
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel/otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver
+    networks:
+      - front-tier
+      - back-tier
+    depends_on:
+      - jaeger
 
 volumes:
   db-data:
