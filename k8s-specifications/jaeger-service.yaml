@@ -10,6 +10,9 @@ spec:
   - port: 14250
     targetPort: 14250
     name: grpc-collector
+  - port: 4317
+    targetPort: 4317
+    name: otlp-grpc
   - port: 6831
     targetPort: 6831
     protocol: UDP

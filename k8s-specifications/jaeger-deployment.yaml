@@ -25,6 +25,8 @@ spec:
         - containerPort: 6831
           protocol: UDP
           name: jaeger-agent
+        - containerPort: 4317
+          name: otlp-grpc
         env:
         - name: COLLECTOR_OTLP_ENABLED
           value: "true"
